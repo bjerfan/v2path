@@ -86,6 +86,33 @@ def schedule_checks(app, controller, window):
             assert selector.property("selectedPopupTextColor").lower() == "#f3f6fc", "Selected popup row is not bright"
             output = ui.secondnet.RUNTIME_DIR
             window.grabWindow().save(str(output / "v3.2-dropdown-preview.png"))
+            from unittest.mock import patch
+            from PySide6.QtCore import Qt
+            from PySide6.QtTest import QTest
+            assert window.findChild(QObject, "clipboardImportButton") is not None
+            assert controller.profile_rows.rows[0]["profileEndpoint"] == "vpn.example.com:443"
+            assert controller.profile_rows.rows[0]["profileKind"] == "VLESS · REALITY · TCP"
+            QMetaObject.invokeMethod(selector, "closePopupForCheck")
+            window.requestActivate()
+            app.processEvents()
+            previous_clipboard = app.clipboard().text()
+            try:
+                controller.preview = False
+                with patch.object(controller, "importClipboard") as importer:
+                    app.clipboard().setText("vless://11111111-1111-1111-1111-111111111111@example.com:443")
+                    QTest.keyClick(window, Qt.Key_V, Qt.ControlModifier)
+                    assert importer.call_count == 1, "Ctrl+V did not trigger clipboard import"
+                    app.clipboard().setText("https://example.com/subscription")
+                    QTest.keyClick(window, Qt.Key_V, Qt.ControlModifier)
+                    assert importer.call_count == 1, "Subscription paste was intercepted"
+                    controller.app_state = "running"
+                    app.clipboard().setText("trojan://secret@example.com:443")
+                    QTest.keyClick(window, Qt.Key_V, Qt.ControlModifier)
+                    assert importer.call_count == 1, "Connected mode allowed import"
+            finally:
+                controller.preview = True
+                controller.app_state = "idle"
+                app.clipboard().setText(previous_clipboard)
         except Exception as exc:
             failures.append(str(exc))
         QMetaObject.invokeMethod(selector, "closePopupForCheck")

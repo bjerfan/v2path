@@ -12,8 +12,8 @@ import threading
 import time
 from types import SimpleNamespace
 
-from PySide6.QtCore import QObject, Property, Signal, Slot, QTimer, QUrl, Qt, QAbstractListModel, QModelIndex, qInstallMessageHandler
-from PySide6.QtGui import QAction, QColor, QIcon, QPixmap
+from PySide6.QtCore import QObject, Property, Signal, Slot, QTimer, QUrl, Qt, QEvent, QAbstractListModel, QModelIndex, qInstallMessageHandler
+from PySide6.QtGui import QAction, QColor, QIcon, QPixmap, QKeySequence
 from PySide6.QtWidgets import QApplication, QFileDialog, QInputDialog, QMessageBox, QSystemTrayIcon, QMenu
 from PySide6.QtQml import QQmlApplicationEngine
 from PySide6.QtQuick import QQuickWindow, QSGRendererInterface
@@ -21,8 +21,9 @@ from PySide6.QtQuick import QQuickWindow, QSGRendererInterface
 import secondnet
 import legacy_engine as legacy
 import windows_taskbar
+from profile_import import clipboard_links, profile_details
 
-VERSION = "3.2.1"
+VERSION = "3.2.2"
 legacy.GUI_VERSION = VERSION
 ASSETS_DIR = Path(getattr(sys, "_MEIPASS", Path(__file__).parent)) / "assets"
 PREVIOUS_DEFAULT_TARGETS = legacy._default_discord_targets()
@@ -183,8 +184,8 @@ class Controller(QObject):
         self.window_hidden = False
         self.app_state = "idle"
         self.library = legacy.ConfigLibrary() if not preview else SimpleNamespace(records=[
-            {"id": "sample1", "name": "Evening connection", "type": "link", "value": ""},
-            {"id": "sample2", "name": "Backup configuration", "type": "file", "value": ""},
+            {"id": "sample1", "name": "Evening connection", "type": "link", "value": "vless://11111111-1111-1111-1111-111111111111@vpn.example.com:443?security=reality&type=tcp#Evening"},
+            {"id": "sample2", "name": "Backup configuration", "type": "link", "value": "trojan://example-password@backup.example.com:443?security=tls&type=ws#Backup"},
         ])
         self.settings = {} if preview else legacy._read_json(legacy.SETTINGS_PATH, {})
         if not isinstance(self.settings, dict):
@@ -207,7 +208,7 @@ class Controller(QObject):
         except OSError as exc:
             self.child_job = None
             self.child_job_error = str(exc)
-        self.profile_rows = Rows(["profileId", "profileName", "profileKind", "isSelected", "isEnabled"], self)
+        self.profile_rows = Rows(["profileId", "profileName", "profileKind", "profileEndpoint", "isSelected", "isEnabled"], self)
         self.log_rows = Rows(["lineText"], self)
         for name in ("adapter_combo", "adapter_detail", "config_detail", "remove_button", "refresh_button",
                      "process_entry", "process_button", "process_clear_button", "discord_launch_button",
@@ -297,7 +298,8 @@ class Controller(QObject):
     def _render_config_list(self) -> None:
         self.profile_rows.replace([
             {"profileId": r["id"], "profileName": r["name"],
-             "profileKind": "JSON configuration" if r["type"] == "file" else "VPN share link",
+             "profileEndpoint": profile_details(self.library.source(r) if not self.preview else r["value"])[0],
+             "profileKind": profile_details(self.library.source(r) if not self.preview else r["value"])[1],
              "isSelected": r["id"] == self.selected_config_id, "isEnabled": self.app_state == "idle"}
             for r in self.library.records
         ])
@@ -379,15 +381,31 @@ class Controller(QObject):
         self.timer.stop()
         self.application.quit()
 
-    def _add_link(self) -> None:
-        link, accepted = QInputDialog.getText(None, "Add VPN share link", "Paste a VLESS, VMess, or Trojan link:")
-        if accepted and link.strip():
+    @Slot(result=bool)
+    def importClipboard(self) -> bool:
+        if self.app_state != "idle" or self.preview:
+            return False
+        imported = False
+        for link in clipboard_links(self.application.clipboard().text()):
             try:
-                record = self.library.add_link(link)
+                record = next((r for r in self.library.records if r.get("type") == "link" and r.get("value") == link), None)
+                if record is None:
+                    record = self.library.add_link(link)
+                    self._append_log(f"Imported from clipboard: {record['name']}")
                 self._refresh_config_choices(record["id"])
-                self._append_log(f"Added share link: {record['name']}")
-            except Exception as exc:
-                Dialogs.showerror("Could not add share link", str(exc))
+                imported = True
+            except (secondnet.V2PathError, ValueError, TypeError, OSError):
+                self._append_log("Clipboard import failed: invalid VLESS, VMess, or Trojan configuration.")
+        return imported
+
+    def eventFilter(self, watched: QObject, event: QEvent) -> bool:
+        if (event.type() == QEvent.KeyPress and event.matches(QKeySequence.Paste)
+                and self.app_state == "idle" and not self.preview
+                and self.window is not None and self.application.focusWindow() == self.window
+                and clipboard_links(self.application.clipboard().text())):
+            self.importClipboard()
+            return True
+        return super().eventFilter(watched, event)
 
     def _restart_elevated(self) -> bool:
         arguments = ["--replace-existing"]
@@ -437,7 +455,7 @@ class Controller(QObject):
             return
         if self.app_state != "idle":
             return
-        actions = {"refresh": self._refresh_adapters, "import": self._import_config, "link": self._add_link,
+        actions = {"refresh": self._refresh_adapters, "clipboard": self.importClipboard,
                    "remove": self._remove_config, "browse": self._select_process, "clearApps": self._clear_processes}
         if name in actions:
             actions[name]()
@@ -448,7 +466,7 @@ UNCHANGED_METHODS = (
     "_load_adapters_worker", "_apply_adapters", "_adapter_changed", "_refresh_adapters",
     "_selected_config", "_profile_subtitle", "_refresh_config_choices", "_select_config",
     "_routing_mode_changed", "_find_discord_executable", "_restart_discord_direct", "_restart_discord_worker",
-    "_select_process", "_is_admin", "_ensure_routing_prerequisites", "_import_config", "_remove_config",
+    "_select_process", "_is_admin", "_ensure_routing_prerequisites", "_remove_config",
     "_ports", "_start", "_start_worker", "_watch_direct_proxy", "_watch_filter", "_terminate_process",
     "_terminate_children", "_stop", "_stop_worker", "_clear_processes", "_toggle_connection", "_exit_application",
 )
@@ -500,6 +518,7 @@ def main() -> int:
         return 2
     window = qml.rootObjects()[0]
     controller.window = window
+    app.installEventFilter(controller)
     app.setWindowIcon(controller.icon)
     window.setIcon(controller.icon)
     windows_taskbar.set_window_identity(int(window.winId()), ASSETS_DIR / "secondnet.ico", Path(__file__))

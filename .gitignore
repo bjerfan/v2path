@@ -5,6 +5,7 @@ build/
 dist/
 debug/
 release/
+local-preview/
 runtime/
 configs/
 *.spec

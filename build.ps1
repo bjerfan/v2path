@@ -1,5 +1,8 @@
+param([switch]$Preview)
 $ErrorActionPreference = 'Stop'
 $project = $PSScriptRoot
+$outputRoot = if ($Preview) { Join-Path $project 'local-preview' } else { $project }
+$archiveName = if ($Preview) { 'V2Path-clipboard-preview.zip' } else { 'V2Path-V3.2.2.zip' }
 $python = (Get-Command python).Source
 $pythonDirectory = Split-Path $python
 $previousPath = $env:PATH
@@ -7,7 +10,7 @@ try {
     # Avoid collecting unrelated ICU/API-shim DLLs from PDF/image tool folders.
     $env:PATH = "$pythonDirectory;$pythonDirectory\Scripts;$env:SystemRoot\System32;$env:SystemRoot"
     & $python -m PyInstaller --noconfirm --clean --windowed --name V2Path `
-    --distpath "$project\dist" --workpath "$project\build\work" --specpath "$project\build" `
+    --distpath "$outputRoot\dist" --workpath "$project\build\work" --specpath "$project\build" `
     --version-file "$project\windows-version-info.txt" `
     --icon "$project\assets\secondnet.ico" `
     --add-data "$project\assets;assets" `
@@ -21,9 +24,9 @@ try {
 } finally {
     $env:PATH = $previousPath
 }
-New-Item -ItemType Directory -Path "$project\dist\V2Path\configs" -Force | Out-Null
-New-Item -ItemType Directory -Path "$project\release" -Force | Out-Null
-Copy-Item -LiteralPath "$project\README.md" -Destination "$project\dist\V2Path\README.md"
-Compress-Archive -Path "$project\dist\V2Path" `
-    -DestinationPath "$project\release\V2Path-V3.2.1.zip" -CompressionLevel Optimal -Force
-Get-FileHash "$project\release\V2Path-V3.2.1.zip" -Algorithm SHA256
+New-Item -ItemType Directory -Path "$outputRoot\dist\V2Path\configs" -Force | Out-Null
+New-Item -ItemType Directory -Path "$outputRoot\release" -Force | Out-Null
+Copy-Item -LiteralPath "$project\README.md" -Destination "$outputRoot\dist\V2Path\README.md"
+Compress-Archive -Path "$outputRoot\dist\V2Path" `
+    -DestinationPath "$outputRoot\release\$archiveName" -CompressionLevel Optimal -Force
+Get-FileHash "$outputRoot\release\$archiveName" -Algorithm SHA256

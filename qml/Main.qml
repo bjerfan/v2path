@@ -8,7 +8,7 @@ ApplicationWindow {
     width: 1160; height: 800
     minimumWidth: 960; minimumHeight: 660
     visible: false
-    title: "V2Path V3.2"
+    title: "V2Path " + bridge.view.version
     color: "#111316"
     font.family: "Segoe UI"
     font.pixelSize: 12
@@ -252,11 +252,14 @@ ApplicationWindow {
                             Heading { text: "VPN profiles"; Layout.fillWidth: true }
                             Hint { text: bridge.view.profileCount + " saved" }
                         }
-                        RowLayout {
-                            Layout.fillWidth: true; spacing: 8
-                            ActionButton { text: "Import JSON"; Layout.fillWidth: true; enabled: root.idle; onClicked: bridge.action("import") }
-                            ActionButton { text: "Add share link"; Layout.fillWidth: true; enabled: root.idle; onClicked: bridge.action("link") }
+                        ActionButton {
+                            objectName: "clipboardImportButton"
+                            text: "Import from clipboard"
+                            Layout.fillWidth: true; enabled: root.idle
+                            onClicked: bridge.action("clipboard")
+                            Accessible.description: "Import raw VLESS, VMess, or Trojan links from the clipboard. Shortcut: Control+V."
                         }
+                        Hint { text: "Ctrl+V · VLESS / VMess / Trojan"; Layout.fillWidth: true }
                         Rectangle {
                             Layout.fillWidth: true; Layout.fillHeight: true
                             color: "#121519"; radius: 8
@@ -273,12 +276,13 @@ ApplicationWindow {
                                     required property string profileId
                                     required property string profileName
                                     required property string profileKind
+                                    required property string profileEndpoint
                                     required property bool isSelected
                                     required property bool isEnabled
-                                    width: profiles.width - 10; height: 64
+                                    width: profiles.width - 10; height: 82
                                     enabled: isEnabled
                                     onClicked: bridge.selectProfile(profileId)
-                                    Accessible.name: profileName
+                                    Accessible.name: profileName + ", " + profileEndpoint + ", " + profileKind
                                     background: Rectangle {
                                         radius: 8
                                         color: profile.isSelected ? "#283454" : profile.hovered ? "#272E39" : "#191C21"
@@ -288,12 +292,13 @@ ApplicationWindow {
                                     contentItem: ColumnLayout {
                                         spacing: 3
                                         Label { text: profile.profileName; color: root.ink; font.pixelSize: 12; font.weight: Font.DemiBold; elide: Text.ElideRight; Layout.fillWidth: true }
-                                        Hint { text: profile.profileKind }
+                                        Label { text: profile.profileEndpoint; color: root.ink; font.pixelSize: 12; elide: Text.ElideMiddle; Layout.fillWidth: true }
+                                        Hint { text: profile.profileKind; elide: Text.ElideRight; Layout.fillWidth: true }
                                     }
                                     ToolTip.visible: hovered
-                                    ToolTip.text: profileName
+                                    ToolTip.text: profileName + "\n" + profileEndpoint + "\n" + profileKind
                                 }
-                                Hint { anchors.centerIn: parent; visible: profiles.count === 0; text: "Your profiles will appear here.\nImport JSON or add a share link."; horizontalAlignment: Text.AlignHCenter }
+                                Hint { anchors.centerIn: parent; visible: profiles.count === 0; text: "Copy a raw config link, then press Ctrl+V.\nSubscription links are ignored."; horizontalAlignment: Text.AlignHCenter; width: parent.width - 20; wrapMode: Text.WordWrap }
                             }
                         }
                         RowLayout {
