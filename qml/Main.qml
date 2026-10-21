@@ -364,7 +364,39 @@ ApplicationWindow {
                                 ActionButton { text: "Browse .exe"; enabled: root.idle && bridge.view.mode !== "Proxy only"; onClicked: bridge.action("browse") }
                             }
                             RowLayout {
-                                Hint { text: "Auto-restart after connecting"; Layout.fillWidth: true; font.pixelSize: 10 }
+                                Switch {
+                                    id: autoRestartSwitch
+                                    objectName: "discordAutoRestartSwitch"
+                                    text: "Auto-restart Discord"
+                                    Layout.fillWidth: true
+                                    implicitHeight: 34; spacing: 8
+                                    checked: bridge.view.discordAutoRestart
+                                    enabled: (root.idle || root.connected) && bridge.view.mode === "Discord per-app"
+                                    onToggled: bridge.setDiscordAutoRestart(checked)
+                                    Accessible.name: "Automatically restart Discord after connecting"
+                                    Accessible.description: "Turn off to restart Discord or reconnect voice manually. The preference is saved."
+                                    opacity: enabled ? 1 : 0.5
+                                    indicator: Rectangle {
+                                        implicitWidth: 36; implicitHeight: 20
+                                        y: (autoRestartSwitch.height - height) / 2
+                                        radius: 10
+                                        color: autoRestartSwitch.checked ? root.accent : "#343B47"
+                                        border.color: autoRestartSwitch.activeFocus ? root.ink : "#67758B"
+                                        border.width: autoRestartSwitch.activeFocus ? 2 : 1
+                                        Rectangle {
+                                            x: autoRestartSwitch.checked ? 19 : 3; y: 3
+                                            width: 14; height: 14; radius: 7; color: root.ink
+                                            Behavior on x { NumberAnimation { duration: root.motion ? 140 : 0 } }
+                                        }
+                                    }
+                                    contentItem: Text {
+                                        text: autoRestartSwitch.text; color: root.ink; font.pixelSize: 11
+                                        leftPadding: autoRestartSwitch.indicator.width + autoRestartSwitch.spacing
+                                        verticalAlignment: Text.AlignVCenter
+                                    }
+                                    ToolTip.visible: hovered
+                                    ToolTip.text: "Off: restart Discord or reconnect voice yourself after connecting."
+                                }
                                 ActionButton { text: "Restart Discord"; implicitWidth: 108; enabled: root.connected && bridge.view.mode === "Discord per-app"; onClicked: bridge.action("restartDiscord") }
                                 ActionButton { text: "Clear"; implicitWidth: 52; enabled: root.idle && bridge.view.mode !== "Proxy only"; onClicked: bridge.action("clearApps") }
                             }

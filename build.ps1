@@ -2,7 +2,7 @@ param([switch]$Preview)
 $ErrorActionPreference = 'Stop'
 $project = $PSScriptRoot
 $outputRoot = if ($Preview) { Join-Path $project 'local-preview' } else { $project }
-$archiveName = if ($Preview) { 'V2Path-clipboard-preview.zip' } else { 'V2Path-V3.2.2.zip' }
+$archiveName = if ($Preview) { 'V2Path-clipboard-preview.zip' } else { 'V2Path-V3.2.3.zip' }
 $python = (Get-Command python).Source
 $pythonDirectory = Split-Path $python
 $previousPath = $env:PATH

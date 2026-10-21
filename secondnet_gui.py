@@ -23,7 +23,7 @@ import legacy_engine as legacy
 import windows_taskbar
 from profile_import import clipboard_links, profile_details
 
-VERSION = "3.2.2"
+VERSION = "3.2.3"
 legacy.GUI_VERSION = VERSION
 ASSETS_DIR = Path(getattr(sys, "_MEIPASS", Path(__file__).parent)) / "assets"
 PREVIOUS_DEFAULT_TARGETS = legacy._default_discord_targets()
@@ -38,6 +38,11 @@ def initial_processes(settings: dict[str, object]) -> str:
     if not value.strip() or normalized(value) == normalized(PREVIOUS_DEFAULT_TARGETS):
         return "Discord.exe"
     return value
+
+
+def discord_auto_restart_enabled(settings: dict[str, object]) -> bool:
+    # Preserve the previous behavior for existing and new installations.
+    return settings.get("discord_auto_restart", True) is not False
 
 
 def qt_message(_kind: object, context: object, message: str) -> None:
@@ -259,6 +264,7 @@ class Controller(QObject):
             "profileCount": len(self.library.records), "mode": self.mode_combo.get(),
             "modeLabel": "Per-App" if self.mode_combo.get() == legacy.MODE_DISCORD else self.mode_combo.get(),
             "processes": self.process_entry.get(), "socksPort": self.socks_entry.get(),
+            "discordAutoRestart": discord_auto_restart_enabled(self.settings),
             "directPort": self.direct_socks_entry.get(),
             "routingDetail": self.routing_detail.options.get("text", ""),
             "renderer": self.renderer, "animations": legacy.LiquidPowerButton._animations_allowed(),
@@ -351,8 +357,8 @@ class Controller(QObject):
                             self.tray_icon.notify(str(value), "V2Path error")
                         self._show_window()
                     Dialogs.showerror("V2Path error", str(value))
-            elif kind == "restart_discord" and not self.closing and self.app_state == "running":
-                self._restart_discord_direct(ask=False)
+            elif kind == "restart_discord":
+                self._handle_discord_restart()
             elif kind == "adapters":
                 self._apply_adapters(value)
         self._append_logs(logs)
@@ -414,6 +420,30 @@ class Controller(QObject):
         return int(ctypes.windll.shell32.ShellExecuteW(
             None, "runas", sys.executable, subprocess.list2cmdline(arguments), str(secondnet.APP_DIR), 1,
         )) > 32
+
+    def _handle_discord_restart(self) -> None:
+        if self.closing or self.app_state != "running" or self.mode_combo.get() != legacy.MODE_DISCORD:
+            return
+        if discord_auto_restart_enabled(self.settings):
+            self._restart_discord_direct(ask=False)
+        else:
+            self._append_log("Discord auto-restart is off. Restart Discord or reconnect voice manually if needed.")
+
+    @Slot(bool)
+    def setDiscordAutoRestart(self, enabled: bool) -> None:
+        if self.app_state not in {"idle", "running"}:
+            return
+        if discord_auto_restart_enabled(self.settings) == enabled:
+            return
+        previous = dict(self.settings)
+        self.settings["discord_auto_restart"] = enabled
+        try:
+            if not self.preview:
+                legacy._atomic_json(legacy.SETTINGS_PATH, self.settings)
+        except OSError:
+            self.settings = previous
+            self._append_log("WARNING: Could not save Discord auto-restart preference.")
+        self.schedule_publish()
 
     @Slot(str, str)
     def setField(self, name: str, value: str) -> None:

@@ -90,6 +90,14 @@ def schedule_checks(app, controller, window):
             from PySide6.QtCore import Qt
             from PySide6.QtTest import QTest
             assert window.findChild(QObject, "clipboardImportButton") is not None
+            restart_switch = window.findChild(QObject, "discordAutoRestartSwitch")
+            assert restart_switch is not None and restart_switch.property("checked")
+            controller.setDiscordAutoRestart(False)
+            app.processEvents()
+            assert not restart_switch.property("checked"), "Auto-restart toggle did not turn off"
+            controller.setDiscordAutoRestart(True)
+            app.processEvents()
+            assert restart_switch.property("checked"), "Auto-restart toggle did not turn on"
             assert controller.profile_rows.rows[0]["profileEndpoint"] == "vpn.example.com:443"
             assert controller.profile_rows.rows[0]["profileKind"] == "VLESS · REALITY · TCP"
             QMetaObject.invokeMethod(selector, "closePopupForCheck")
