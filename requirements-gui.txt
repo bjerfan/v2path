@@ -1,0 +1,5 @@
+PySide6-Essentials==6.12.0
+customtkinter==6.0.0
+pillow==11.3.0
+pystray==0.19.5
+pyinstaller==6.21.0

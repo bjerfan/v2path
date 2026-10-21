@@ -1,0 +1,38 @@
+V2Path per-app routing third-party components
+================================================
+
+Xray-core 26.3.27
+License: Mozilla Public License 2.0, included as licenses/XRAY-MPL-2.0.txt.
+Unmodified source: https://github.com/XTLS/Xray-core/tree/v26.3.27
+
+Wintun 0.14.1 prebuilt signed DLL
+License: Wintun prebuilt binary license, included as licenses/WINTUN-LICENSE.txt.
+Upstream: https://www.wintun.net/
+
+ProxiFyre v2.3.0
+License: GNU Affero General Public License, version 3.
+Upstream: https://github.com/wiresock/proxifyre/tree/v2.3.0
+The unmodified corresponding source archive and license are included beside
+the executable under tools/proxifyre.
+
+Windows Packet Filter / ndisapi 3.6.2.1 x64
+Copyright (c) 2018 Vadim Smirnov.
+License: MIT License.
+Upstream: https://github.com/wiresock/ndisapi
+
+Node.js v24.21.0 (Krypton LTS) Windows x64 runtime
+License: MIT License and bundled dependency licenses.
+Upstream: https://nodejs.org/
+The complete upstream license notice is included as tools/NODE-LICENSE.txt.
+
+These components are separate programs aggregated with V2Path. Their
+upstream authors provide no warranty for V2Path.
+
+Qt / PySide6 Essentials / Shiboken6 6.12.0
+Copyright The Qt Company Ltd. and other contributors.
+PySide6 Essentials package license: LGPL-3.0-only OR GPL-2.0-only OR GPL-3.0-only.
+The Qt libraries are dynamically loaded and kept separately under _internal.
+License texts are included under licenses. Source and module-specific notices:
+https://code.qt.io/cgit/pyside/pyside-setup.git/tree/?h=6.12.0
+https://code.qt.io/cgit/qt/qtbase.git/tree/?h=6.12.0
+https://code.qt.io/cgit/qt/qtdeclarative.git/tree/?h=6.12.0

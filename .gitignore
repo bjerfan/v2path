@@ -1,0 +1,15 @@
+__pycache__/
+*.py[cod]
+.venv/
+build/
+dist/
+debug/
+release/
+runtime/
+configs/
+*.spec
+tools/*.exe
+tools/*.dll
+tools/*.msi
+tools/*.dat
+tools/proxifyre/
