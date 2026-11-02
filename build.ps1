@@ -9,7 +9,7 @@ $previousPath = $env:PATH
 try {
     # Avoid collecting unrelated ICU/API-shim DLLs from PDF/image tool folders.
     $env:PATH = "$pythonDirectory;$pythonDirectory\Scripts;$env:SystemRoot\System32;$env:SystemRoot"
-    & $python -m PyInstaller --noconfirm --clean --windowed --name V2Path `
+    & $python -m PyInstaller --noconfirm --clean --windowed --uac-admin --name V2Path `
     --distpath "$outputRoot\dist" --workpath "$project\build\work" --specpath "$project\build" `
     --version-file "$project\windows-version-info.txt" `
     --icon "$project\assets\secondnet.ico" `

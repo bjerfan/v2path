@@ -1,5 +1,7 @@
 # V2Path v3.2.7
 
+- The packaged V2Path.exe now requests administrator rights at launch through its Windows manifest. Windows shows its normal UAC consent prompt; this is required for per-app packet routing and hosts-file controls.
+
 - Added **Check for Update** beside Connect. It reads GitHub's latest public release and shows a release link only when newer; otherwise it says "This is the latest version available".
 - Added **Make Backup** and **Restore Backup** for Windows hosts. Manual backups have a timestamped filename distinct from the automatic DNS-fix backup. Restore uses the newest manual backup after confirmation and saves a pre-restore recovery copy.
 - The DNS fix now requires a manual backup first, and the UI shows the sequence: backup, connect VPN, fix, restart Discord. Undo remains available for an already-applied fix.
