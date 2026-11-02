@@ -34,14 +34,15 @@ def schedule_checks(app, controller, window):
                     assert ui.Controller.__dict__[name] is ui.legacy.V2PathGUI.__dict__[name], name
                 for mode in (ui.legacy.MODE_PROXY, ui.legacy.MODE_TUN, ui.legacy.MODE_DISCORD):
                     controller.setField("mode", mode)
-                    assert controller._ports() == (10808, 10809)
+                    assert controller._ports() == (10807, 10809)
+                    assert controller.mode_combo.get() == ui.legacy.MODE_DISCORD
                 controller.setField("socksPort", "10809")
                 try:
                     controller._ports()
                     raise AssertionError("Duplicate ports accepted")
                 except ui.secondnet.V2PathError:
                     pass
-                controller.setField("socksPort", "10808")
+                controller.setField("socksPort", "10807")
                 for state in ("starting", "running", "stopping", "idle"):
                     controller._set_state(state)
                     assert controller.profile_rows is initial_rows
@@ -52,7 +53,7 @@ def schedule_checks(app, controller, window):
                 assert tkinter._default_root is None, "A Tk frontend was created"
                 assert controller.view["modeLabel"] == "Per-App"
                 assert window.findChild(QObject, "processEntry").property("placeholderText") == "Discord.exe"
-                assert controller.process_entry.get() == "Discord.exe", "Updater is still in the default targets"
+                assert controller.process_entry.get() == ui.DEFAULT_PROCESSES, "Per-App defaults are incorrect"
                 assert not controller.icon.isNull(), "Application icon is missing"
                 identity = ui.windows_taskbar.window_identity(int(window.winId()))
                 assert identity["appId"] == ui.windows_taskbar.APP_ID

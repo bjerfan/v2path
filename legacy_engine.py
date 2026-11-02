@@ -1279,7 +1279,7 @@ class V2PathGUI(ctk.CTk):
                     existing.add(item.casefold())
             self.process_entry.delete(0, "end")
             self.process_entry.insert(0, ", ".join(current))
-            detail = "Only listed apps' UDP uses V2Path  •  use Proxifier for Discord TCP\nVPN SOCKS5 stays VPN-bound; DIRECT SOCKS5 stays on the selected internet."
+            detail = "Selected apps use VPN for TCP + UDP.\nIn Proxifier, bypass these apps to avoid overlapping routing."
         elif mode == MODE_TUN:
             detail = "Creates “V2Path TUN”  •  selected apps use VPN  •  others direct\nAll public IPv4 traffic enters TUN before process routing."
         else:
@@ -1312,12 +1312,12 @@ class V2PathGUI(ctk.CTk):
         if ask and not messagebox.askyesno(
             "Restart Discord",
             "This will close every running Discord window and reopen the current installed Discord.exe.\n\n"
-            "Configure Proxifier to send Discord.exe and Update.exe TCP to SOCKS5 127.0.0.1, while V2Path handles Discord UDP. Continue?",
+            "V2Path handles selected apps' TCP and UDP. Proxifier must bypass these apps. Continue?",
             parent=self,
         ):
             return
         if not ask:
-            self._append_log("Restarting Discord now that VPN and Discord UDP routing are ready…")
+            self._append_log("Restarting Discord now that VPN and per-app TCP + UDP routing are ready…")
         threading.Thread(
             target=self._restart_discord_worker, args=(executable, ask), daemon=True,
         ).start()
@@ -1336,7 +1336,7 @@ class V2PathGUI(ctk.CTk):
             )
             self.events.put((
                 "log",
-                "Restarted Discord; the existing Proxifier rules handle TCP and V2Path handles UDP.",
+                "Restarted Discord; V2Path handles selected apps' TCP and UDP.",
             ))
         except OSError as exc:
             self.events.put(("error" if report_error else "log", f"Could not restart Discord: {exc}"))
@@ -1382,7 +1382,7 @@ class V2PathGUI(ctk.CTk):
             if not messagebox.askyesno(
                 "Administrator access required",
                 f"{mode} needs Administrator access for transparent routing. Restart V2Path as Administrator?\n\n"
-                "Proxy-only mode does not require Administrator access.", parent=self,
+                "Per-app routing requires the packet-filter helper.", parent=self,
             ):
                 return False
             if not self._restart_elevated():
@@ -1706,7 +1706,7 @@ class V2PathGUI(ctk.CTk):
                     helper = secondnet.prepare_proxifyre(process_names, socks)
                     helper_version = secondnet.windows_file_version(helper)
                     if helper_version:
-                        self.events.put(("log", f"Discord UDP helper: ProxiFyre {'.'.join(map(str, helper_version[:3]))}."))
+                        self.events.put(("log", f"Per-app TCP + UDP helper: ProxiFyre {'.'.join(map(str, helper_version[:3]))}."))
                     secondnet.ensure_proxifyre_firewall_rule(helper)
                     self.events.put(("log", "Windows Firewall: Discord UDP relay allowed on all profiles."))
                     filter_process = subprocess.Popen(
@@ -1729,7 +1729,7 @@ class V2PathGUI(ctk.CTk):
                             "Discord per-app routing could not start."
                             + (f"\n{output}" if output else " Check the packet-filter driver.")
                         )
-                    self.events.put(("log", "Discord UDP-only routing is active; use Proxifier on SOCKS5 for Discord TCP."))
+                    self.events.put(("log", "Per-app TCP + UDP routing is active. Proxifier must bypass selected apps; its settings are unchanged."))
                     threading.Thread(target=self._watch_filter, args=(filter_process,), daemon=True).start()
                 self.events.put(("state", "running"))
                 if mode == MODE_DISCORD:

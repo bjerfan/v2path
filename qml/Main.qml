@@ -206,6 +206,14 @@ ApplicationWindow {
                         Item { Layout.fillWidth: true }
                     }
                 }
+                ActionButton {
+                    objectName: "checkUpdateButton"
+                    text: bridge.view.updateBusy ? "Checking…" : "Check for Update"
+                    implicitWidth: 132; implicitHeight: 46
+                    enabled: !bridge.view.preview && !bridge.view.updateBusy
+                    Accessible.name: "Check GitHub for a newer V2Path release"
+                    onClicked: bridge.action("checkUpdate")
+                }
             }
         }
 
@@ -328,14 +336,8 @@ ApplicationWindow {
                             anchors.fill: parent; spacing: 8
                             RowLayout {
                                 Layout.fillWidth: true
-                                Heading { text: "Routing mode"; Layout.fillWidth: true }
-                                Choice {
-                                    Layout.preferredWidth: 190; enabled: root.idle
-                                    model: ["Proxy only", "Per-App", "Xray TUN"]
-                                    currentIndex: model.indexOf(bridge.view.modeLabel)
-                                    onActivated: bridge.setField("mode", currentIndex === 1 ? "Discord per-app" : currentText)
-                                    Accessible.name: "Routing mode"
-                                }
+                                Heading { text: "Per-App"; Layout.fillWidth: true }
+                                Hint { text: "TCP + UDP" }
                             }
                             Hint { text: bridge.view.routingDetail; Layout.fillWidth: true }
                         }
@@ -403,6 +405,52 @@ ApplicationWindow {
                         }
                     }
                     Card {
+                        objectName: "discordFixCard"
+                        Layout.fillWidth: true
+                        Layout.preferredHeight: 118
+                        ColumnLayout {
+                            anchors.fill: parent; spacing: 8
+                            RowLayout {
+                                Layout.fillWidth: true
+                                Heading { text: "Discord DNS · Windows hosts"; Layout.fillWidth: true }
+                                Hint { text: bridge.view.manualHostsBackup ? "Manual backup ready" : "Step 1: make a backup" }
+                            }
+                            Hint { text: "Guide: Make Backup → connect VPN → Fix Discord. Restart Discord. Restore Backup replaces the entire hosts file."; Layout.fillWidth: true }
+                            RowLayout {
+                                Layout.fillWidth: true; spacing: 8
+                                ActionButton {
+                                    objectName: "makeHostsBackupButton"
+                                    text: "Make Backup"; implicitWidth: 108
+                                    enabled: !bridge.view.preview && !bridge.view.discordHostsBusy
+                                    Accessible.name: "Make timestamped Windows hosts backup"
+                                    onClicked: bridge.action("hostsBackup")
+                                }
+                                ActionButton {
+                                    objectName: "restoreHostsBackupButton"
+                                    text: "Restore Backup"; implicitWidth: 112
+                                    enabled: !bridge.view.preview && !bridge.view.discordHostsBusy && bridge.view.manualHostsBackup
+                                    Accessible.name: "Restore latest manual Windows hosts backup"
+                                    onClicked: bridge.action("hostsRestore")
+                                }
+                                Item { Layout.fillWidth: true }
+                                ActionButton {
+                                    objectName: "discordHostsButton"
+                                    implicitWidth: 164
+                                    text: bridge.view.discordHostsBusy ? "Working…" : bridge.view.discordHostsFixed ? "Undo DNS fix" : "Fix Discord not opening"
+                                    enabled: !bridge.view.preview && !bridge.view.discordHostsBusy && (bridge.view.discordHostsFixed || (bridge.view.manualHostsBackup && root.connected))
+                                    Accessible.name: text
+                                    Accessible.description: "Changes Windows hosts entries for all applications; confirmation and Undo are available."
+                                    onClicked: bridge.action("discordHosts")
+                                    background: Rectangle {
+                                        radius: 7
+                                        color: parent.down ? "#9B303A" : parent.hovered ? "#A93743" : "#842B36"
+                                        border.color: parent.activeFocus ? root.ink : "#C55A65"
+                                    }
+                                }
+                            }
+                        }
+                    }
+                    Card {
                         objectName: "portsCard"
                         Layout.fillWidth: true
                         Layout.preferredHeight: 96
@@ -429,6 +477,16 @@ ApplicationWindow {
                             RowLayout {
                                 Heading { text: "Connection log"; Layout.fillWidth: true }
                                 ActionButton { text: "Follow"; implicitWidth: 60; visible: !logs.followTail; onClicked: { logs.followTail = true; logs.positionViewAtEnd() } }
+                                ActionButton {
+                                    id: copyLogButton
+                                    objectName: "copyLogButton"
+                                    text: copyLogFeedback.running ? "Copied" : "Copy log"
+                                    implicitWidth: 76
+                                    enabled: logs.count > 0
+                                    Accessible.name: "Copy connection log to clipboard"
+                                    onClicked: { bridge.action("copyLog"); copyLogFeedback.restart() }
+                                    Timer { id: copyLogFeedback; interval: 1800 }
+                                }
                                 ActionButton { text: "Clear log"; implicitWidth: 76; onClicked: bridge.action("clearLog") }
                             }
                             Rectangle {

@@ -1,21 +1,25 @@
-# V2Path v3.2.3
+# V2Path v3.2.7
 
-Route selected applications' UDP traffic through a VPN using the internet interface you choose. Useful for voice calls, screen sharing, and streaming while keeping other applications on their usual connection.
+- Added **Check for Update** beside Connect. It reads GitHub's latest public release and shows a release link only when newer; otherwise it says "This is the latest version available".
+- Added **Make Backup** and **Restore Backup** for Windows hosts. Manual backups have a timestamped filename distinct from the automatic DNS-fix backup. Restore uses the newest manual backup after confirmation and saves a pre-restore recovery copy.
+- The DNS fix now requires a manual backup first, and the UI shows the sequence: backup, connect VPN, fix, restart Discord. Undo remains available for an already-applied fix.
 
-Download `V2Path-V3.2.3.zip`, extract it completely, and run `V2Path.exe`.
-Keep `_internal` beside the executable. Exit older V2Path versions from their
-tray menu before launching this release.
+- New Per-App default list: Discord.exe, Update.exe, discordptb.exe, VencordInstaller.exe. The previous single-Discord default migrates; custom lists remain unchanged.
 
-- Added a saved **Auto-restart Discord** toggle in the Applications section.
-- Turn it off to leave Discord running after VPN connection; restart Discord or reconnect voice manually if needed.
-- The **Restart Discord** button stays available while connected, regardless of the toggle.
-- Auto-restart defaults to on to preserve existing behavior. The preference can be changed while disconnected or connected and is remembered between launches.
-- Clipboard imports, detailed profile rows, and VPN/direct SOCKS5 behavior are unchanged.
+- Added a red **Fix Discord not opening** button between Applications and Ports.
+- While connected, it resolves four Discord domains through the VPN using Cloudflare DNS-over-HTTPS, then adds public IPv4 answers to Windows hosts after confirmation.
+- The button becomes **Undo DNS fix** after use; it removes only V2Path's marked entries. An original-byte backup is saved as `hosts.v2path.backup`.
+- Hosts entries affect all applications on the PC, remain after V2Path exits, and may become stale. Undo or refresh them if Discord stops connecting later.
+- Existing conflicting hosts entries are not changed. Discord must be restarted after applying or undoing the fix.
 
-The per-app mode handles UDP; applications that also need TCP through the VPN can
-use the local VPN SOCKS5 endpoint. The direct SOCKS5 endpoint uses the selected
-interface without the VPN profile.
+- Per-App is now the only GUI routing mode. Saved TUN/proxy-only selections migrate to Per-App.
+- Selected applications use ProxiFyre for both TCP and UDP through the VPN.
+- VPN SOCKS5 defaults to 127.0.0.1:10807. The previous default 10808 migrates to 10807; custom ports are preserved.
+- Direct SOCKS5 remains on 10809 by default, using the selected interface without the VPN.
+- The Discord auto-restart toggle and manual restart button remain available.
 
-Verify the download with `SHA256SUMS.txt`.
+Important: configure Proxifier to bypass applications routed by V2Path, including matching catch-all rules. V2Path does not modify Proxifier profiles. Do not let both tools intercept the same application's TCP traffic.
+
+Extract V2Path-V3.2.4.zip completely and run V2Path.exe. Keep _internal beside it. Exit older versions from the tray before starting this version. Update clients using the old VPN SOCKS5 port to 10807.
 
 Made with ❤️ by ZzeK.

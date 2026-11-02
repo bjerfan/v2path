@@ -193,10 +193,12 @@ class PerAppTunnelTests(unittest.TestCase):
         )
         proxy = config["proxies"][0]
         self.assertEqual(proxy["socks5ProxyEndpoint"], "127.0.0.1:10808")
-        self.assertEqual(proxy["supportedProtocols"], ["UDP"])
+        self.assertEqual(proxy["supportedProtocols"], ["TCP", "UDP"])
+        self.assertIn("xray.exe", config["excludes"])
+        self.assertIn("ProxiFyre.exe", config["excludes"])
         self.assertEqual(proxy["supportedAddressFamilies"], ["IPv4"])
         self.assertEqual(proxy["appNames"][0], "Discord.exe")
-        self.assertTrue(config["bypassLan"])
+        self.assertFalse(config["bypassLan"])
         self.assertEqual(config["logLevel"], "Info")
 
     def test_installed_filter_version_must_meet_minimum(self):

@@ -19,11 +19,20 @@ from PySide6.QtQml import QQmlApplicationEngine
 from PySide6.QtQuick import QQuickWindow, QSGRendererInterface
 
 import secondnet
+import discord_hosts
+import update_check
 import legacy_engine as legacy
 import windows_taskbar
 from profile_import import clipboard_links, profile_details
 
-VERSION = "3.2.3"
+VERSION = "3.2.7"
+DEFAULT_PROCESSES = "Discord.exe, Update.exe, discordptb.exe, VencordInstaller.exe"
+
+
+def initial_vpn_port(settings: dict[str, object]) -> str:
+    """Migrate the former default, but preserve explicitly customized ports."""
+    port = str(settings.get("socks_port", 10807))
+    return "10807" if port == "10808" else port
 legacy.GUI_VERSION = VERSION
 ASSETS_DIR = Path(getattr(sys, "_MEIPASS", Path(__file__).parent)) / "assets"
 PREVIOUS_DEFAULT_TARGETS = legacy._default_discord_targets()
@@ -33,10 +42,10 @@ QT_MESSAGES: list[str] = []
 
 
 def initial_processes(settings: dict[str, object]) -> str:
-    value = str(settings.get("routing_processes", settings.get("tunnel_processes", "Discord.exe")))
+    value = str(settings.get("routing_processes", settings.get("tunnel_processes", DEFAULT_PROCESSES)))
     normalized = lambda text: {part.strip().strip('"').replace("/", "\\").casefold() for part in text.split(",") if part.strip()}
-    if not value.strip() or normalized(value) == normalized(PREVIOUS_DEFAULT_TARGETS):
-        return "Discord.exe"
+    if not value.strip() or normalized(value) in (normalized(PREVIOUS_DEFAULT_TARGETS), {"discord.exe"}):
+        return DEFAULT_PROCESSES
     return value
 
 
@@ -188,6 +197,8 @@ class Controller(QObject):
         self.closing = False
         self.window_hidden = False
         self.app_state = "idle"
+        self.hosts_busy = False
+        self.update_busy = False
         self.library = legacy.ConfigLibrary() if not preview else SimpleNamespace(records=[
             {"id": "sample1", "name": "Evening connection", "type": "link", "value": "vless://11111111-1111-1111-1111-111111111111@vpn.example.com:443?security=reality&type=tcp#Evening"},
             {"id": "sample2", "name": "Backup configuration", "type": "link", "value": "trojan://example-password@backup.example.com:443?security=tls&type=ws#Backup"},
@@ -219,11 +230,10 @@ class Controller(QObject):
                      "process_entry", "process_button", "process_clear_button", "discord_launch_button",
                      "routing_detail", "mode_combo", "socks_entry", "direct_socks_entry"):
             setattr(self, name, Value(self.schedule_publish))
-        self.socks_entry.set(str(self.settings.get("socks_port", 10808)))
+        self.socks_entry.set(initial_vpn_port(self.settings))
         self.direct_socks_entry.set(str(self.settings.get("direct_socks_port", self.settings.get("http_port", 10809))))
         self.process_entry.set(initial_processes(self.settings))
-        mode = str(self.settings.get("routing_mode", legacy.MODE_DISCORD))
-        self.mode_combo.set(mode if mode in (legacy.MODE_PROXY, legacy.MODE_DISCORD, legacy.MODE_TUN) else legacy.MODE_DISCORD)
+        self.mode_combo.set(legacy.MODE_DISCORD)
         self._routing_mode_changed(self.mode_combo.get())
         self._refresh_config_choices()
         self.tray_icon = None
@@ -265,6 +275,11 @@ class Controller(QObject):
             "modeLabel": "Per-App" if self.mode_combo.get() == legacy.MODE_DISCORD else self.mode_combo.get(),
             "processes": self.process_entry.get(), "socksPort": self.socks_entry.get(),
             "discordAutoRestart": discord_auto_restart_enabled(self.settings),
+            "discordHostsFixed": False if self.preview else discord_hosts.installed(),
+            "discordHostsBusy": self.hosts_busy,
+            "manualHostsBackup": False if self.preview else bool(discord_hosts.latest_manual_backup()),
+            "updateBusy": self.update_busy,
+            "preview": self.preview,
             "directPort": self.direct_socks_entry.get(),
             "routingDetail": self.routing_detail.options.get("text", ""),
             "renderer": self.renderer, "animations": legacy.LiquidPowerButton._animations_allowed(),
@@ -333,6 +348,11 @@ class Controller(QObject):
         self.log_rows.rows = []
         self.log_rows.endResetModel()
 
+    def _copy_log(self) -> None:
+        lines = [str(row["lineText"]) for row in self.log_rows.rows]
+        if lines:
+            self.application.clipboard().setText("\n".join(lines))
+
     def _poll_events(self) -> None:
         logs = []
         for _ in range(500):
@@ -361,6 +381,31 @@ class Controller(QObject):
                 self._handle_discord_restart()
             elif kind == "adapters":
                 self._apply_adapters(value)
+            elif kind == "hosts_done":
+                self.hosts_busy = False
+                logs.append(str(value))
+                self.schedule_publish()
+            elif kind == "hosts_error":
+                self.hosts_busy = False
+                logs.append(f"Discord DNS fix failed: {value}")
+                self.schedule_publish()
+            elif kind == "update_result":
+                self.update_busy = False
+                newer, link = value
+                if newer:
+                    dialog = QMessageBox()
+                    dialog.setWindowTitle("V2Path update available")
+                    dialog.setTextFormat(Qt.RichText)
+                    dialog.setText(f'New version available: <a href="{link}">{link}</a>')
+                    dialog.setTextInteractionFlags(Qt.TextBrowserInteraction)
+                    dialog.exec()
+                else:
+                    Dialogs.showinfo("V2Path updates", "This is the latest version available")
+                self.schedule_publish()
+            elif kind == "update_error":
+                self.update_busy = False
+                Dialogs.showerror("Update check failed", str(value))
+                self.schedule_publish()
         self._append_logs(logs)
 
     def _refresh_tray(self) -> None:
@@ -455,9 +500,6 @@ class Controller(QObject):
         elif name == "adapter" and value in self.adapter_by_label:
             self.adapter_combo.set(value)
             self._adapter_changed(value, persist=not self.preview)
-        elif name == "mode" and value in (legacy.MODE_PROXY, legacy.MODE_DISCORD, legacy.MODE_TUN):
-            self.mode_combo.set(value)
-            self._routing_mode_changed(value)
 
     @Slot(str)
     def selectProfile(self, profile_id: str) -> None:
@@ -478,6 +520,21 @@ class Controller(QObject):
         if name == "clearLog":
             self._clear_log()
             return
+        if name == "copyLog":
+            self._copy_log()
+            return
+        if name == "discordHosts":
+            self._toggle_discord_hosts()
+            return
+        if name == "hostsBackup":
+            self._manual_hosts_action(False)
+            return
+        if name == "hostsRestore":
+            self._manual_hosts_action(True)
+            return
+        if name == "checkUpdate":
+            self._check_update()
+            return
         if self.preview:
             return
         if name == "restartDiscord" and self.app_state == "running" and self.mode_combo.get() == legacy.MODE_DISCORD:
@@ -489,6 +546,79 @@ class Controller(QObject):
                    "remove": self._remove_config, "browse": self._select_process, "clearApps": self._clear_processes}
         if name in actions:
             actions[name]()
+
+    def _toggle_discord_hosts(self) -> None:
+        if self.preview or self.hosts_busy:
+            return
+        removing = discord_hosts.installed()
+        if not removing and not discord_hosts.latest_manual_backup():
+            Dialogs.showinfo("Backup required", "First press Make Backup in the Discord DNS section.")
+            return
+        if not removing and self.app_state != "running":
+            Dialogs.showinfo("Connect first", "Connect the VPN before resolving Discord domains through it.")
+            return
+        message = ("Remove only V2Path's Discord hosts entries?" if removing else
+                   "Fetch Discord IP addresses through the VPN and add them to the Windows hosts file?\n\n"
+                   "This changes DNS for every app on this PC, not just Discord. IPs may become stale; use Undo when finished. "
+                   "Existing hosts entries will be preserved. Restart Discord afterward.")
+        if not Dialogs.askyesno("Discord DNS hosts fix", message):
+            return
+        self.hosts_busy = True
+        self.schedule_publish()
+        port = int(self.socks_entry.get()) if not removing else 0
+        threading.Thread(target=self._discord_hosts_worker, args=(removing, port), daemon=True).start()
+
+    def _discord_hosts_worker(self, removing: bool, port: int) -> None:
+        try:
+            if removing:
+                discord_hosts.undo()
+                self.events.put(("hosts_done", "Removed V2Path Discord hosts entries. Restart Discord to retry normal DNS."))
+            else:
+                resolved = discord_hosts.apply(port)
+                self.events.put(("hosts_done", "Discord hosts fix applied through VPN: " +
+                                 ", ".join(f"{domain}={ip}" for domain, ip in resolved.items()) +
+                                 ". Restart Discord to retry."))
+        except (OSError, ValueError, RuntimeError, json.JSONDecodeError, subprocess.TimeoutExpired) as exc:
+            self.events.put(("hosts_error", str(exc)))
+
+    def _manual_hosts_action(self, restoring: bool) -> None:
+        if self.preview or self.hosts_busy:
+            return
+        if restoring:
+            backup = discord_hosts.latest_manual_backup()
+            if backup is None:
+                Dialogs.showinfo("No backup", "Press Make Backup first.")
+                return
+            if not Dialogs.askyesno("Restore hosts backup", f"Replace the entire Windows hosts file with this backup?\n\n{backup.name}\n\nThis affects every app. A pre-restore recovery copy will be saved."):
+                return
+        self.hosts_busy = True
+        self.schedule_publish()
+        threading.Thread(target=self._manual_hosts_worker, args=(restoring,), daemon=True).start()
+
+    def _manual_hosts_worker(self, restoring: bool) -> None:
+        try:
+            if restoring:
+                backup = discord_hosts.restore_manual_backup()
+                self.events.put(("hosts_done", f"Restored Windows hosts file from {backup.name}."))
+            else:
+                backup = discord_hosts.make_manual_backup()
+                self.events.put(("hosts_done", f"Manual hosts backup saved: {backup.name}."))
+        except (OSError, RuntimeError, subprocess.TimeoutExpired) as exc:
+            self.events.put(("hosts_error", str(exc)))
+
+    def _check_update(self) -> None:
+        if self.preview or self.update_busy:
+            return
+        self.update_busy = True
+        self.schedule_publish()
+        port = int(self.socks_entry.get()) if self.app_state == "running" else None
+        threading.Thread(target=self._update_worker, args=(port,), daemon=True).start()
+
+    def _update_worker(self, port: int | None) -> None:
+        try:
+            self.events.put(("update_result", update_check.check(VERSION, port)))
+        except (OSError, RuntimeError, ValueError, json.JSONDecodeError, subprocess.TimeoutExpired) as exc:
+            self.events.put(("update_error", str(exc)))
 
 
 # Bind the original functions rather than duplicating or rewriting network behavior.

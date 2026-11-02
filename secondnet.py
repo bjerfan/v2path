@@ -103,14 +103,13 @@ def build_proxifyre_config(process_names: list[str], socks_port: int) -> dict[st
         raise V2PathError("The SOCKS5 port must be between 1 and 65535.")
     return {
         "logLevel": "Info",
-        "bypassLan": True,
+        "bypassLan": False,
         "proxies": [
             {
                 "appNames": process_names,
                 "socks5ProxyEndpoint": f"127.0.0.1:{socks_port}",
-                # TCP is intentionally left to Proxifier. ProxiFyre is used
-                # only for Discord's native voice and screen-share UDP.
-                "supportedProtocols": ["UDP"],
+                # One routing owner for both protocols; Proxifier must bypass these apps.
+                "supportedProtocols": ["TCP", "UDP"],
                 # Discord voice currently uses IPv4 endpoints. Explicitly blocking
                 # unsupported IPv6 destinations prevents an unproxied IPv6 leak and
                 # lets Discord fall back to IPv4 on dual-stack machines.
@@ -1082,7 +1081,7 @@ def prepare(args: argparse.Namespace) -> tuple[Path, dict[str, object], str]:
 def add_common_config_args(parser: argparse.ArgumentParser) -> None:
     parser.add_argument("config", help="Xray/V2Ray JSON file, or a VLESS/VMess/Trojan share link")
     parser.add_argument("--interface", "--adapter", help="adapter name, interface index, IPv4 address, or gateway (auto-detects Wi-Fi)")
-    parser.add_argument("--socks-port", type=int, default=10808, help="local SOCKS5 port; 0 disables it (default: 10808)")
+    parser.add_argument("--socks-port", type=int, default=10807, help="local SOCKS5 port; 0 disables it (default: 10807)")
     parser.add_argument(
         "--direct-socks-port", "--http-port", dest="direct_socks_port", type=int, default=10809,
         help="local SOCKS5 port that exits directly through the selected adapter; 0 disables it (default: 10809)",
