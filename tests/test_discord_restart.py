@@ -73,6 +73,8 @@ class DiscordRestartTests(unittest.TestCase):
     def test_restart_event_uses_the_preference_handler(self):
         owner = self.owner(False)
         owner.events = queue.Queue()
+        owner._pending_logs = []
+        owner._next_log_flush = 0.0
         owner.events.put(("restart_discord", None))
         ui.Controller._poll_events(owner)
         owner._handle_discord_restart.assert_called_once()

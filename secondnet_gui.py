@@ -25,7 +25,9 @@ import legacy_engine as legacy
 import windows_taskbar
 from profile_import import clipboard_links, profile_details
 
-VERSION = "3.2.7"
+VERSION = "3.2.9"
+MAX_LOG_ROWS = 300
+LOG_FLUSH_INTERVAL = 0.25
 DEFAULT_PROCESSES = "Discord.exe, Update.exe, discordptb.exe, VencordInstaller.exe"
 
 
@@ -117,10 +119,11 @@ class Value:
 
 
 class Rows(QAbstractListModel):
-    def __init__(self, roles: list[str], parent: QObject) -> None:
+    def __init__(self, roles: list[str], parent: QObject, max_rows: int | None = None) -> None:
         super().__init__(parent)
         self.roles = {Qt.UserRole + i + 1: name.encode() for i, name in enumerate(roles)}
         self.rows: list[dict[str, object]] = []
+        self.max_rows = max_rows
 
     def roleNames(self) -> dict[int, bytes]:
         return self.roles
@@ -147,14 +150,16 @@ class Rows(QAbstractListModel):
     def append(self, lines: list[str]) -> None:
         if not lines:
             return
+        if self.max_rows is not None:
+            lines = lines[-self.max_rows:]
+            count = max(0, len(self.rows) + len(lines) - self.max_rows)
+            if count:
+                self.beginRemoveRows(QModelIndex(), 0, count - 1)
+                del self.rows[:count]
+                self.endRemoveRows()
         self.beginInsertRows(QModelIndex(), len(self.rows), len(self.rows) + len(lines) - 1)
         self.rows.extend({"lineText": line.rstrip()} for line in lines)
         self.endInsertRows()
-        if len(self.rows) > 5000:
-            count = len(self.rows) - 4000
-            self.beginRemoveRows(QModelIndex(), 0, count - 1)
-            del self.rows[:count]
-            self.endRemoveRows()
 
 
 class Tray:
@@ -225,7 +230,9 @@ class Controller(QObject):
             self.child_job = None
             self.child_job_error = str(exc)
         self.profile_rows = Rows(["profileId", "profileName", "profileKind", "profileEndpoint", "isSelected", "isEnabled"], self)
-        self.log_rows = Rows(["lineText"], self)
+        self.log_rows = Rows(["lineText"], self, max_rows=MAX_LOG_ROWS)
+        self._pending_logs: list[str] = []
+        self._next_log_flush = 0.0
         for name in ("adapter_combo", "adapter_detail", "config_detail", "remove_button", "refresh_button",
                      "process_entry", "process_button", "process_clear_button", "discord_launch_button",
                      "routing_detail", "mode_combo", "socks_entry", "direct_socks_entry"):
@@ -344,6 +351,7 @@ class Controller(QObject):
             self.logUpdated.emit()
 
     def _clear_log(self) -> None:
+        self._pending_logs.clear()
         self.log_rows.beginResetModel()
         self.log_rows.rows = []
         self.log_rows.endResetModel()
@@ -406,7 +414,15 @@ class Controller(QObject):
                 self.update_busy = False
                 Dialogs.showerror("Update check failed", str(value))
                 self.schedule_publish()
-        self._append_logs(logs)
+        if logs:
+            self._pending_logs.extend(logs)
+            if len(self._pending_logs) > MAX_LOG_ROWS:
+                del self._pending_logs[:-MAX_LOG_ROWS]
+        now = time.monotonic()
+        if self._pending_logs and now >= self._next_log_flush:
+            self._append_logs(self._pending_logs.copy())
+            self._pending_logs.clear()
+            self._next_log_flush = now + LOG_FLUSH_INTERVAL
 
     def _refresh_tray(self) -> None:
         if self.tray_icon:

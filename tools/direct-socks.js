@@ -29,6 +29,10 @@ const dnsServers = (options.get("dns-servers") || "")
   .split(",")
   .map((value) => value.trim())
   .filter((value) => net.isIP(value) === 4);
+if (dnsServers.length === 0) {
+  // Keep DNS on the chosen interface even when its adapter has no DNS server.
+  dnsServers.push("8.8.8.8");
+}
 
 if (!Number.isInteger(listenPort) || listenPort < 1 || listenPort > 65535) {
   throw new Error("--listen-port must be between 1 and 65535");
@@ -40,9 +44,7 @@ if (net.isIP(bindAddress) !== 4) {
 process.title = "SecondNet Direct SOCKS5";
 
 const resolver = new dns.Resolver();
-if (dnsServers.length > 0) {
-  resolver.setServers(dnsServers);
-}
+resolver.setServers(dnsServers);
 resolver.setLocalAddress(bindAddress);
 
 function resolveIPv4(host) {

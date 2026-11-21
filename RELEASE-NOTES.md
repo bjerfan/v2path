@@ -1,4 +1,11 @@
-# V2Path v3.2.7
+# V2Path v3.2.9
+
+- The live log now retains only the latest 300 lines and redraws at most four times per second. This reduces UI stutter during bursts of traffic.
+- Routine Xray info-level traffic messages are disabled by default; warnings and errors remain visible.
+
+## v3.2.8
+
+- Direct SOCKS5 now uses DNS server 8.8.8.8 when the selected network adapter reports no IPv4 DNS servers. Queries remain bound to that adapter; configured adapter DNS servers still take precedence.
 
 - The packaged V2Path.exe now requests administrator rights at launch through its Windows manifest. Windows shows its normal UAC consent prompt; this is required for per-app packet routing and hosts-file controls.
 
@@ -22,6 +29,6 @@
 
 Important: configure Proxifier to bypass applications routed by V2Path, including matching catch-all rules. V2Path does not modify Proxifier profiles. Do not let both tools intercept the same application's TCP traffic.
 
-Extract V2Path-V3.2.4.zip completely and run V2Path.exe. Keep _internal beside it. Exit older versions from the tray before starting this version. Update clients using the old VPN SOCKS5 port to 10807.
+Extract V2Path-V3.2.9.zip completely and run V2Path.exe. Keep _internal beside it. Exit older versions from the tray before starting this version. Update clients using the old VPN SOCKS5 port to 10807.
 
 Made with ❤️ by ZzeK.

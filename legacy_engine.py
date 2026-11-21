@@ -1558,7 +1558,7 @@ class V2PathGUI(ctk.CTk):
             )
             log_config = config.setdefault("log", {})
             if isinstance(log_config, dict):
-                log_config["loglevel"] = "warning" if mode == MODE_TUN else "info"
+                log_config["loglevel"] = "warning"
             secondnet.write_config(config, GENERATED_CONFIG)
             secondnet.check_ports([socks, direct_socks])
             xray = secondnet.find_xray(None)
